@@ -43,6 +43,9 @@ jobs:
       - name: Ensure render browser
         run: npx --yes hyperframes browser ensure || true
 
+      - name: Install Kokoro TTS (Python speech deps)
+        run: python3 -m pip install --break-system-packages kokoro-onnx soundfile
+
       - name: Generate + post
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
