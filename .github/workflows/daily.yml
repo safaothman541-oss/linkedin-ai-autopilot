@@ -4,7 +4,12 @@ on:
   schedule:
     # 09:00 UTC every day. (GitHub may delay scheduled runs 5-30 min at peak times.)
     - cron: "0 9 * * *"
-  workflow_dispatch: {}   # lets you run it manually from the Actions tab
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: "Optional: make ONE video about this exact topic (used by the Telegram bot)"
+        required: false
+        default: ""
 
 concurrency:
   group: daily-post
@@ -64,6 +69,7 @@ jobs:
           TTS_VOICE: ${{ vars.TTS_VOICE || 'af_heart' }}
           BRAND_HANDLE: ${{ vars.BRAND_HANDLE || '' }}
           VIDEOS_PER_RUN: ${{ vars.VIDEOS_PER_RUN || '3' }}
+          TOPIC: ${{ github.event.inputs.topic }}
         run: node src/run.js
 
       - name: Upload video artifact (download/preview)

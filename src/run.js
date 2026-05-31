@@ -20,6 +20,7 @@ const env = process.env;
 const TG = { token: env.TELEGRAM_BOT_TOKEN, chatId: env.TELEGRAM_CHAT_ID };
 const POST_MODE = (env.POST_MODE || "auto").toLowerCase();
 const COUNT = Math.max(1, parseInt(env.VIDEOS_PER_RUN || "3", 10) || 3);
+const TOPIC = (env.TOPIC || "").trim(); // set by the Telegram bot for a one-off topic video
 
 async function pickSources(n) {
   const parser = new Parser({ timeout: 20000 });
@@ -44,7 +45,8 @@ async function pickSources(n) {
 }
 
 async function main() {
-  const sources = await pickSources(COUNT);
+  const count = TOPIC ? 1 : COUNT;
+  const sources = TOPIC ? [{ title: TOPIC, summary: "", link: "" }] : await pickSources(COUNT);
 
   let token = null, personUrn = null;
   if (POST_MODE === "auto") {
@@ -60,7 +62,7 @@ async function main() {
   }
 
   const results = [];
-  for (let i = 0; i < COUNT; i++) {
+  for (let i = 0; i < count; i++) {
     const style = STYLES[i % STYLES.length];
     try {
       const angle = ANGLES[(new Date().getDay() + i) % ANGLES.length];
@@ -73,7 +75,7 @@ async function main() {
       const videoFile = await makeVideo({ content, workdir, voice: env.TTS_VOICE || "af_heart", style: i });
       try { fs.copyFileSync(videoFile, `video${i + 1}.mp4`); } catch {}
 
-      await sendVideo({ ...TG, file: videoFile, caption: `🎬 ${i + 1}/${COUNT} · style: ${style.id}\n\n${postText}`.slice(0, 1024) });
+      await sendVideo({ ...TG, file: videoFile, caption: `🎬 ${i + 1}/${count} · style: ${style.id}\n\n${postText}`.slice(0, 1024) });
 
       if (POST_MODE === "auto" && token && personUrn) {
         const id = await postVideoToLinkedIn({ token, personUrn, file: videoFile, text: postText, title: content.title });
