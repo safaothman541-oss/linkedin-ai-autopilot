@@ -236,8 +236,10 @@ function buildComposition(content, D, compId, words, images, audioSrc = "assets/
       for (let i = 0; i < SCENES; i++) {
         const s = i * SS;
         var dx = (i % 2 === 0) ? 55 : -55, dy = (i % 2 === 0) ? -38 : 42;
-        tl.fromTo("#sc" + i, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.7, ease: "power1.out" }, Math.max(0, s - 0.35));
-        tl.fromTo("#sc" + i, { scale: 1.14, x: -dx, y: -dy }, { scale: 1.3, x: dx, y: dy, duration: SS + 1.7, ease: "none" }, Math.max(0, s - 0.35));
+        var st = Math.max(0, s - 0.35);
+        var kdur = Math.max(1.0, Math.min(SS + 1.7, TOTAL - st)); // never extend the timeline past the audio
+        tl.fromTo("#sc" + i, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.7, ease: "power1.out" }, st);
+        tl.fromTo("#sc" + i, { scale: 1.14, x: -dx, y: -dy }, { scale: 1.3, x: dx, y: dy, duration: kdur, ease: "none" }, st);
         if (i < SCENES - 1) tl.to("#sc" + i, { autoAlpha: 0, duration: 0.7, ease: "power1.in" }, s + SS - 0.35);
       }
 
