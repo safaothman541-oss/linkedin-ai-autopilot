@@ -99,7 +99,7 @@ async function send(env, chatId, text, markdown) {
 
 async function ai(env, prompt) {
   try {
-    const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent", {
+    const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent", {
       method: "POST", headers: { "x-goog-api-key": env.GEMINI_API_KEY, "Content-Type": "application/json" },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: "You are a concise, friendly AI assistant on Telegram. Answer clearly and briefly. Reply in the user's language (including Kurdish Sorani). If asked what you can do, mention you can also make videos (video <topic>) and control the automation (auto/approve/voice/count/status/settings)." }] },

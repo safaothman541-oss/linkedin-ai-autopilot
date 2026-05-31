@@ -1,8 +1,8 @@
 // gemini.js — generate the day's content with Google Gemini (free tier).
 // Returns: { title, hook, bullets[3], script, post, hashtags[5], description, cta }
 
-const MODEL = "gemini-2.5-flash";
-const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+// Try models in order; fall through to the next if one is rate-limited (429) or errors.
+const MODELS = ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-lite"];
 
 const PROMPT = (angle, source) => `You are a viral short-form content creator AND a senior AI engineer.
 You write daily 9:16 vertical videos (LinkedIn / Reels / TikTok style) about AI & ML.
@@ -43,16 +43,18 @@ export async function generateContent({ angle, source, apiKey }) {
     },
   };
 
-  const res = await fetch(ENDPOINT, {
-    method: "POST",
-    headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) {
-    const t = await res.text();
-    throw new Error(`Gemini API error ${res.status}: ${t.slice(0, 400)}`);
+  let res = null, lastErr = "";
+  for (const model of MODELS) {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: "POST",
+      headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (r.ok) { res = r; console.log("Gemini model:", model); break; }
+    lastErr = `${model} -> ${r.status}`;
+    console.error("Gemini model unavailable:", lastErr);
   }
+  if (!res) throw new Error(`All Gemini models failed. Last: ${lastErr}`);
 
   const data = await res.json();
   const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
