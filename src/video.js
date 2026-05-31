@@ -17,9 +17,9 @@ const SCENE_SECS = 5;
 
 // ---- 3 rotating styles ----
 export const STYLES = [
-  { id: "cinematic", bg: "image",  ac: "#22e3c3", ac2: "#2f7bff", capTop: "50%", label: "AI DAILY" },
-  { id: "neon",      bg: "aurora", ac: "#ff4d8d", ac2: "#8b5cf6", capTop: "50%", label: "AI PULSE" },
-  { id: "electric",  bg: "image",  ac: "#3b82f6", ac2: "#22e3c3", capTop: "66%", label: "TECH BRIEF" },
+  { id: "cinematic", bg: "image",  ac: "#22e3c3", ac2: "#2f7bff", capTop: "62%", label: "AI DAILY" },
+  { id: "neon",      bg: "aurora", ac: "#ff4d8d", ac2: "#8b5cf6", capTop: "62%", label: "AI PULSE" },
+  { id: "electric",  bg: "image",  ac: "#3b82f6", ac2: "#22e3c3", capTop: "68%", label: "TECH BRIEF" },
 ];
 
 const GRADS = [
@@ -96,7 +96,7 @@ function buildComposition(content, D, compId, words, images, audioSrc, style) {
     timed = raw.map((w) => { const start = CAP_START + (acc / totalW) * span; acc += Math.max(2.2, norm(w).length + 2); return { text: w, start: +start.toFixed(3) }; });
   }
 
-  const PER = 3;
+  const PER = 5;
   const lines = [];
   for (let i = 0; i < timed.length; i += PER) {
     const ws = timed.slice(i, i + PER);
@@ -160,9 +160,9 @@ function buildComposition(content, D, compId, words, images, audioSrc, style) {
   #hooktext{color:${INK};font-size:120px;font-weight:900;line-height:1.0;letter-spacing:-2px;text-align:center;text-shadow:0 12px 55px rgba(0,0,0,.7);}
   #capwrap{position:absolute;left:54px;right:54px;top:${style.capTop};transform:translateY(-50%);min-height:560px;display:flex;align-items:center;justify-content:center;z-index:5;}
   .capline{position:absolute;width:100%;display:flex;flex-direction:column;align-items:center;gap:26px;opacity:0;visibility:hidden;}
-  .capicon{font-size:150px;line-height:1;filter:drop-shadow(0 12px 30px rgba(0,0,0,.5));}
+  .capicon{font-size:100px;line-height:1;filter:drop-shadow(0 12px 30px rgba(0,0,0,.5));}
   .capwords{display:flex;flex-wrap:wrap;gap:10px 22px;align-items:center;justify-content:center;}
-  .cw{display:inline-block;color:${INK};font-size:104px;font-weight:900;line-height:1.06;letter-spacing:-1px;padding:2px 20px;border-radius:18px;background-color:rgba(255,255,255,0);text-shadow:0 6px 30px rgba(0,0,0,.75);will-change:transform,opacity,background-color,color;}
+  .cw{display:inline-block;color:${INK};font-size:74px;font-weight:900;line-height:1.14;letter-spacing:-1px;padding:1px 14px;border-radius:14px;background-color:rgba(255,255,255,0);text-shadow:0 5px 24px rgba(0,0,0,.8);will-change:transform,opacity,background-color,color;}
   #handle{position:absolute;bottom:92px;left:0;right:0;text-align:center;z-index:6;color:#e8f0ff;font-size:40px;font-weight:700;letter-spacing:1px;text-shadow:0 4px 18px rgba(0,0,0,.7);}
   #endcard{position:absolute;inset:0;z-index:8;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:42px;text-align:center;padding:0 80px;background:radial-gradient(60% 55% at 50% 50%, rgba(5,7,15,.55), rgba(5,7,15,.92));opacity:0;visibility:hidden;}
   #endemoji{font-size:170px;line-height:1;}
