@@ -169,7 +169,7 @@ function buildComposition(content, D, compId, words, images, audioSrc = "assets/
        font-size:38px;font-weight:800;letter-spacing:3px;white-space:nowrap;backdrop-filter:blur(8px);}
 
   #hookcard{position:absolute;inset:0;z-index:7;display:flex;align-items:center;justify-content:center;padding:0 70px;
-            background:radial-gradient(60% 50% at 50% 45%, rgba(5,7,15,.28), rgba(5,7,15,.82));opacity:0;visibility:hidden;}
+            background:radial-gradient(75% 60% at 50% 45%, rgba(5,7,15,.92), rgba(5,7,15,.99));opacity:0;visibility:hidden;}
   #hooktext{color:${INK};font-size:120px;font-weight:900;line-height:1.0;letter-spacing:-2px;text-align:center;
             text-shadow:0 12px 55px rgba(0,0,0,.7);}
   #capwrap{position:absolute;left:54px;right:54px;top:50%;transform:translateY(-50%);
@@ -321,38 +321,46 @@ async function fetchPexels(query, key, perPage) {
   }
 }
 
-// Get a relevant background image per scene. Primary: Pexels (reliable, keyed).
+// Curated AI/tech visual queries — always on-brand, never literal-keyword mishaps
+// (e.g. "logging" must NOT pull timber). Captions carry the specifics; the bg sets the mood.
+const AI_QUERIES = [
+  "artificial intelligence", "neural network abstract", "futuristic technology",
+  "data center servers", "humanoid robot", "programming code screen",
+  "digital network connection", "glowing circuit board", "machine learning visualization",
+  "cyber technology blue", "abstract digital brain", "holographic interface",
+  "quantum computing", "futuristic city neon", "data stream abstract",
+];
+
+// Get a relevant background image per scene. Primary: Pexels (reliable, keyed, AI/tech themed).
 // Fallback: Pollinations AI images. Final fallback: gradients (handled in the composition).
 async function fetchImages(content, numScenes, destDir) {
   const out = new Array(numScenes);
-  const title = content.title || "artificial intelligence";
   const key = process.env.PEXELS_API_KEY;
+  const offset = Math.floor(Math.random() * AI_QUERIES.length); // vary day-to-day
 
   if (key) {
-    const kws = (content.keywords && content.keywords.length ? content.keywords.slice(0, 4) : []);
-    const queries = [title, ...kws, "artificial intelligence", "futuristic technology", "data network"].filter(Boolean);
-    let pool = [];
-    for (const q of queries) {
-      if (pool.length >= numScenes + 4) break;
-      pool = pool.concat(await fetchPexels(String(q) + " technology", key, 6));
-    }
-    pool = Array.from(new Set(pool));
-    for (let i = 0; i < numScenes && pool.length; i++) {
-      const file = path.join(destDir, `img${i}.jpg`);
-      if (await fetchOne(pool[i % pool.length], file, 30000)) {
-        out[i] = `assets/img${i}.jpg`; console.log(`  image ${i + 1}/${numScenes} ok (pexels)`);
-      } else console.log(`  image ${i + 1}/${numScenes} download failed`);
+    for (let i = 0; i < numScenes; i++) {
+      const q = AI_QUERIES[(offset + i) % AI_QUERIES.length];
+      const urls = await fetchPexels(q, key, 8);
+      const u = urls.length ? urls[i % urls.length] : null;
+      if (u) {
+        const file = path.join(destDir, `img${i}.jpg`);
+        if (await fetchOne(u, file, 30000)) {
+          out[i] = `assets/img${i}.jpg`; console.log(`  image ${i + 1}/${numScenes} ok (pexels: ${q})`);
+          continue;
+        }
+      }
+      console.log(`  image ${i + 1}/${numScenes} no result for "${q}"`);
     }
     if (out.filter(Boolean).length) return out;
     console.log("  pexels unavailable -> trying pollinations");
   }
 
   // Fallback: Pollinations (one by one)
-  const kws2 = (content.keywords && content.keywords.length ? content.keywords : [title]);
   for (let i = 0; i < numScenes; i++) {
     if (out[i]) continue;
-    const kw = kws2[i % kws2.length] || title;
-    const prompt = `${title}, ${kw}, futuristic technology, cinematic, vivid neon, vertical`;
+    const q = AI_QUERIES[(offset + i) % AI_QUERIES.length];
+    const prompt = `${q}, futuristic, cinematic, vivid neon colors, ultra detailed, vertical`;
     const base = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1920&nologo=true`;
     const file = path.join(destDir, `img${i}.jpg`);
     if (await fetchOne(base + `&seed=${100 + i * 7}`, file, 60000)) {
@@ -366,16 +374,16 @@ async function fetchImages(content, numScenes, destDir) {
 async function fetchMusic(content, destDir) {
   const cid = process.env.JAMENDO_CLIENT_ID;
   if (!cid) return null;
-  const moods = ["upbeat+electronic", "corporate+inspiring", "energetic+technology", "ambient+electronic"];
-  const tags = moods[(content.tagLabel || "").length % moods.length];
-  const url = `https://api.jamendo.com/v3.0/tracks/?client_id=${cid}&format=json&limit=10&audioformat=mp32&order=popularity_total&vocalinstrumental=instrumental&fuzzytags=${tags}`;
+  const moods = ["electronic+upbeat", "energetic+electronic", "epic+powerful", "electronic+dance", "upbeat+corporate"];
+  const tags = moods[Math.floor(Math.random() * moods.length)];
+  const url = `https://api.jamendo.com/v3.0/tracks/?client_id=${cid}&format=json&limit=20&audioformat=mp32&order=popularity_total&vocalinstrumental=instrumental&speed=high+veryhigh&fuzzytags=${tags}`;
   try {
     const res = await fetch(url);
     if (!res.ok) { console.log("  music: jamendo http " + res.status); return null; }
     const j = await res.json();
     const tracks = (j.results || []).filter((t) => t.audio);
     if (!tracks.length) { console.log("  music: no jamendo tracks"); return null; }
-    const pick = tracks[Math.min(2, tracks.length - 1)];
+    const pick = tracks[Math.floor(Math.random() * tracks.length)];
     const file = path.join(destDir, "music.mp3");
     if (await fetchOne(pick.audio, file, 30000)) {
       console.log(`  music: "${pick.name}" by ${pick.artist_name}`);
