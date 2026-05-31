@@ -43,8 +43,8 @@ jobs:
       - name: Ensure render browser
         run: npx --yes hyperframes browser ensure || true
 
-      - name: Install Kokoro TTS (Python speech deps)
-        run: python3 -m pip install --break-system-packages kokoro-onnx soundfile
+      - name: Install Python deps (Kokoro TTS + Whisper word-timing)
+        run: python3 -m pip install --break-system-packages kokoro-onnx soundfile faster-whisper
 
       - name: Generate + post
         env:
