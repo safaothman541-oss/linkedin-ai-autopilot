@@ -362,7 +362,7 @@ function mixAudio(project, D, musicAbs) {
     const cleanAbs = path.join(project, "assets", "narration.wav");
     const finalAbs = path.join(project, "assets", "narration_final.wav");
     const dur = D.toFixed(2), fo = Math.max(0.1, D - 2).toFixed(2);
-    sh(`ffmpeg -y -i "${cleanAbs}" -i "${musicAbs}" -filter_complex "[1:a]aresample=24000,atrim=0:${dur},volume=0.16,afade=t=in:d=1.5,afade=t=out:st=${fo}:d=2[m];[0:a]aresample=24000,volume=1.25[v];[v][m]amix=inputs=2:duration=first:normalize=0[out]" -map "[out]" -ar 24000 "${finalAbs}"`, { cwd: project });
+    sh(`ffmpeg -y -i "${cleanAbs}" -i "${musicAbs}" -filter_complex "[1:a]aresample=24000,atrim=0:${dur},volume=0.09,afade=t=in:d=1.5,afade=t=out:st=${fo}:d=2[m];[0:a]aresample=24000,volume=1.3[v];[v][m]amix=inputs=2:duration=first:normalize=0[out]" -map "[out]" -ar 24000 "${finalAbs}"`, { cwd: project });
     if (fs.existsSync(finalAbs) && fs.statSync(finalAbs).size > 5000) return "assets/narration_final.wav";
   } catch (e) { console.error("music mix failed:", e.message); }
   return cleanRel;
@@ -386,6 +386,12 @@ export async function makeVideo({ content, workdir, voice = "af_heart", style = 
 
   fs.writeFileSync(path.join(project, "script.txt"), content.script);
   sh(`npx --yes hyperframes tts script.txt --voice ${voice} --output assets/narration.wav`, { cwd: project, env: { ...process.env, CI: "1" } });
+  // slow the narration ~10% so captions are calmer / easier to read
+  try {
+    const raw = path.join(assets, "narration.wav"), slow = path.join(assets, "narration_slow.wav");
+    sh(`ffmpeg -y -i "${raw}" -filter:a atempo=0.9 "${slow}"`, { cwd: project });
+    if (fs.existsSync(slow) && fs.statSync(slow).size > 5000) fs.copyFileSync(slow, raw);
+  } catch (e) { console.error("slow-audio skipped:", e.message); }
   const D = audioDuration(path.join(assets, "narration.wav"));
   const numScenes = Math.max(1, Math.ceil(D / SCENE_SECS));
 

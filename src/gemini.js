@@ -11,7 +11,11 @@ Use this fresh news item as inspiration (rewrite completely in your own words, n
 TITLE: ${source.title}
 SUMMARY: ${source.summary}
 
-GOAL: stop the scroll. Be punchy, specific, surprising, and concrete — no fluff, no generic buzzwords.
+GOAL: stop the scroll AND teach something genuinely valuable. Be punchy AND information-dense:
+pack in CONCRETE specifics from the source — exact model/company names, real numbers and benchmarks,
+what is actually new, how it works, and why it matters to engineers. Every sentence must deliver real,
+specific information a smart practitioner would find useful. NO generic statements, NO vague hype, NO filler,
+NO "this changes everything" clichés. If the source lacks specifics, add accurate, well-known technical context.
 The "script" is spoken aloud by a TTS voice AND shown as fast word-by-word captions, so:
 - Use SHORT, punchy sentences (3-9 words each). Conversational and energetic.
 - Open with a bold hook in the first sentence. End by teasing a follow.
