@@ -123,7 +123,10 @@ function buildComposition(content, D, compId, words, images) {
 
   const linesData = JSON.stringify(lines.map((l, li) => ({
     id: li, start: l.start, end: l.end,
-    words: l.words.map((_, wi) => ({ id: wi, start: l.words[wi].start })),
+    words: l.words.map((w, wi) => {
+      const nxt = l.words[wi + 1];
+      return { id: wi, start: w.start, off: +(nxt ? nxt.start : l.end).toFixed(3) };
+    }),
   })));
 
   // ---- background scenes (new image every SCENE_SECS) ----
@@ -170,10 +173,9 @@ function buildComposition(content, D, compId, words, images) {
            opacity:0;visibility:hidden;}
   .capicon{font-size:150px;line-height:1;filter:drop-shadow(0 12px 30px rgba(0,0,0,.5));}
   .capwords{display:flex;flex-wrap:wrap;gap:10px 22px;align-items:center;justify-content:center;}
-  .cw{display:inline-block;color:${INK};font-size:106px;font-weight:900;line-height:1.04;letter-spacing:-1px;
-      text-shadow:0 6px 30px rgba(0,0,0,.75);will-change:transform,opacity;}
-  .cw.hl{color:#06121a;background:linear-gradient(90deg,${C_TEAL},#7af0dd);
-         padding:0 22px;border-radius:18px;box-shadow:0 10px 40px rgba(34,227,195,.5);}
+  .cw{display:inline-block;color:${INK};font-size:104px;font-weight:900;line-height:1.06;letter-spacing:-1px;
+      padding:2px 20px;border-radius:18px;background-color:rgba(34,227,195,0);
+      text-shadow:0 6px 30px rgba(0,0,0,.75);will-change:transform,opacity,background-color,color;}
 
   #handle{position:absolute;bottom:92px;left:0;right:0;text-align:center;z-index:6;
           color:#e8f0ff;font-size:40px;font-weight:700;letter-spacing:1px;text-shadow:0 4px 18px rgba(0,0,0,.7);}
@@ -244,9 +246,12 @@ function buildComposition(content, D, compId, words, images) {
         tl.fromTo("#ci" + ln.id, { scale: .3, opacity: 0, y: 20 }, { scale: 1, opacity: 1, y: 0, duration: .32, ease: "back.out(2.4)" }, Math.max(0, ln.start - .04));
         tl.to("#cl" + ln.id, { autoAlpha: 0, duration: .14 }, Math.max(ln.start + .25, ln.end - .03));
         ln.words.forEach(function (w) {
-          tl.fromTo("#cw" + ln.id + "_" + w.id,
-            { opacity: 0, scale: .45, y: 34, rotation: -3 },
-            { opacity: 1, scale: 1, y: 0, rotation: 0, duration: .26, ease: "back.out(3)" }, w.start);
+          var sel = "#cw" + ln.id + "_" + w.id;
+          // pop in + become the active (karaoke) word
+          tl.fromTo(sel, { opacity: 0, scale: .5, y: 30 }, { opacity: 1, scale: 1.13, y: 0, duration: .2, ease: "back.out(3)" }, w.start);
+          tl.to(sel, { backgroundColor: "${C_TEAL}", color: "#06121a", duration: .1 }, w.start);
+          // hand the highlight to the next word
+          tl.to(sel, { backgroundColor: "rgba(34,227,195,0)", color: "${INK}", scale: 1, duration: .12 }, w.off);
         });
       });
 
@@ -283,23 +288,60 @@ async function fetchOne(url, file, timeoutMs) {
   }
 }
 
-// Fetch AI background images ONE BY ONE (Pollinations free tier throttles concurrency),
-// with retries. Failures fall back to gradients so the video never breaks.
+// Search Pexels for portrait stock photos matching a query -> array of image URLs.
+async function fetchPexels(query, key, perPage) {
+  const url = `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&orientation=portrait&per_page=${perPage}`;
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), 20000);
+  try {
+    const res = await fetch(url, { headers: { Authorization: key }, signal: ctrl.signal });
+    if (!res.ok) return [];
+    const j = await res.json();
+    return (j.photos || []).map((p) => p.src && (p.src.large2x || p.src.portrait || p.src.original)).filter(Boolean);
+  } catch {
+    return [];
+  } finally {
+    clearTimeout(to);
+  }
+}
+
+// Get a relevant background image per scene. Primary: Pexels (reliable, keyed).
+// Fallback: Pollinations AI images. Final fallback: gradients (handled in the composition).
 async function fetchImages(content, numScenes, destDir) {
-  const kws = (content.keywords && content.keywords.length ? content.keywords : [content.title || "artificial intelligence"]);
-  const title = content.title || "artificial intelligence";
   const out = new Array(numScenes);
+  const title = content.title || "artificial intelligence";
+  const key = process.env.PEXELS_API_KEY;
+
+  if (key) {
+    const kws = (content.keywords && content.keywords.length ? content.keywords.slice(0, 4) : []);
+    const queries = [title, ...kws, "artificial intelligence", "futuristic technology", "data network"].filter(Boolean);
+    let pool = [];
+    for (const q of queries) {
+      if (pool.length >= numScenes + 4) break;
+      pool = pool.concat(await fetchPexels(String(q) + " technology", key, 6));
+    }
+    pool = Array.from(new Set(pool));
+    for (let i = 0; i < numScenes && pool.length; i++) {
+      const file = path.join(destDir, `img${i}.jpg`);
+      if (await fetchOne(pool[i % pool.length], file, 30000)) {
+        out[i] = `assets/img${i}.jpg`; console.log(`  image ${i + 1}/${numScenes} ok (pexels)`);
+      } else console.log(`  image ${i + 1}/${numScenes} download failed`);
+    }
+    if (out.filter(Boolean).length) return out;
+    console.log("  pexels unavailable -> trying pollinations");
+  }
+
+  // Fallback: Pollinations (one by one)
+  const kws2 = (content.keywords && content.keywords.length ? content.keywords : [title]);
   for (let i = 0; i < numScenes; i++) {
-    const kw = kws[i % kws.length] || title;
-    const prompt = `${title}, ${kw}, futuristic technology, cinematic lighting, vivid neon colors, ultra detailed, vertical`;
+    if (out[i]) continue;
+    const kw = kws2[i % kws2.length] || title;
+    const prompt = `${title}, ${kw}, futuristic technology, cinematic, vivid neon, vertical`;
     const base = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1920&nologo=true`;
     const file = path.join(destDir, `img${i}.jpg`);
-    let ok = false;
-    for (let attempt = 0; attempt < 3 && !ok; attempt++) {
-      ok = await fetchOne(base + `&seed=${100 + i * 7 + attempt * 1313}`, file, 85000);
+    if (await fetchOne(base + `&seed=${100 + i * 7}`, file, 60000)) {
+      out[i] = `assets/img${i}.jpg`; console.log(`  image ${i + 1}/${numScenes} ok (pollinations)`);
     }
-    if (ok) { out[i] = `assets/img${i}.jpg`; console.log(`  image ${i + 1}/${numScenes} ok`); }
-    else { console.log(`  image ${i + 1}/${numScenes} failed -> gradient`); }
   }
   return out;
 }
