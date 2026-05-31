@@ -46,7 +46,7 @@ async function pickSources(n) {
 
 async function main() {
   const count = TOPIC ? 1 : COUNT;
-  const sources = TOPIC ? [{ title: TOPIC, summary: "", link: "" }] : await pickSources(COUNT);
+  const sources = TOPIC ? [{ title: TOPIC.slice(0, 120), summary: TOPIC, link: "" }] : await pickSources(COUNT);
 
   let token = null, personUrn = null;
   if (POST_MODE === "auto") {

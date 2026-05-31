@@ -53,8 +53,8 @@ async function handle(env, chatId, text) {
   if (cmd === "video" || cmd === "ڤیدیۆ") topic = arg;
   else if (text.startsWith("ڤیدیۆ")) topic = text.replace(/^ڤیدیۆ\S*\s*/, "").trim();
   if (topic !== null && topic.length > 1) {
-    const ok = await dispatch(env, { topic: topic.slice(0, 300) });
-    return send(env, chatId, ok ? `🎬 Creating a video about:\n"${topic}"\nIt'll arrive here in a few minutes ⏳` : "⚠️ Couldn't start the job.");
+    const ok = await dispatch(env, { topic: topic.slice(0, 3000) });
+    return send(env, chatId, ok ? `🎬 Creating a video from your brief:\n"${topic.slice(0, 200)}${topic.length > 200 ? "…" : ""}"\nIt'll arrive here in a few minutes ⏳` : "⚠️ Couldn't start the job.");
   }
 
   if (cmd === "run") {
