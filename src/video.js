@@ -85,7 +85,7 @@ function buildComposition(content, D, compId, words, images, audioSrc, style) {
   let timed = [];
   if (Array.isArray(words) && words.length) {
     timed = words.filter((w) => w && w.text && Number.isFinite(w.start))
-      .map((w) => ({ text: w.text, start: +(+w.start).toFixed(3) }));
+      .map((w) => ({ text: w.text, start: +(+w.start).toFixed(3), end: +(+(w.end ?? w.start)).toFixed(3) }));
   }
   if (!timed.length) {
     const raw = String(content.script || content.post || content.title || "").replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
@@ -96,13 +96,22 @@ function buildComposition(content, D, compId, words, images, audioSrc, style) {
     timed = raw.map((w) => { const start = CAP_START + (acc / totalW) * span; acc += Math.max(2.2, norm(w).length + 2); return { text: w, start: +start.toFixed(3) }; });
   }
 
-  const PER = 5;
+  // Group words into caption lines that follow the SPEECH rhythm: a new line starts
+  // after a pause (gap), a sentence end, or a max length — so a phrase shows as it is spoken.
+  const GAP = 0.32, MAXW = 8;
   const lines = [];
-  for (let i = 0; i < timed.length; i += PER) {
-    const ws = timed.slice(i, i + PER);
-    const next = timed[i + PER];
-    const end = next ? +next.start.toFixed(3) : +Math.min(CAP_END, ws[0].start + 1.4).toFixed(3);
-    lines.push({ words: ws, start: +ws[0].start.toFixed(3), end, emoji: pickEmoji(ws.map((w) => w.text).join(" "), lines.length) });
+  let cur = [];
+  for (let i = 0; i < timed.length; i++) {
+    cur.push(timed[i]);
+    const w = timed[i], nxt = timed[i + 1];
+    const endsSentence = /[.!?…:،]$/.test(w.text);
+    const gap = (nxt && Number.isFinite(w.end)) ? (nxt.start - w.end) : 0;
+    if (!nxt || endsSentence || gap > GAP || cur.length >= MAXW) {
+      const start = +cur[0].start.toFixed(3);
+      const end = nxt ? +nxt.start.toFixed(3) : +Math.min(CAP_END, (w.end || start) + 1.2).toFixed(3);
+      lines.push({ words: cur, start, end, emoji: pickEmoji(cur.map((x) => x.text).join(" "), lines.length) });
+      cur = [];
+    }
   }
 
   const linesHtml = lines.map((ln, li) =>
@@ -162,7 +171,7 @@ function buildComposition(content, D, compId, words, images, audioSrc, style) {
   .capline{position:absolute;width:100%;display:flex;flex-direction:column;align-items:center;gap:26px;opacity:0;visibility:hidden;}
   .capicon{font-size:100px;line-height:1;filter:drop-shadow(0 12px 30px rgba(0,0,0,.5));}
   .capwords{display:flex;flex-wrap:wrap;gap:10px 22px;align-items:center;justify-content:center;}
-  .cw{display:inline-block;color:${INK};font-size:74px;font-weight:900;line-height:1.14;letter-spacing:-1px;padding:1px 14px;border-radius:14px;background-color:rgba(255,255,255,0);text-shadow:0 5px 24px rgba(0,0,0,.8);will-change:transform,opacity,background-color,color;}
+  .cw{display:inline-block;color:${INK};font-size:66px;font-weight:900;line-height:1.16;letter-spacing:-0.5px;padding:1px 12px;border-radius:12px;background-color:rgba(255,255,255,0);text-shadow:0 5px 22px rgba(0,0,0,.82);will-change:transform,opacity,background-color,color;}
   #handle{position:absolute;bottom:92px;left:0;right:0;text-align:center;z-index:6;color:#e8f0ff;font-size:40px;font-weight:700;letter-spacing:1px;text-shadow:0 4px 18px rgba(0,0,0,.7);}
   #endcard{position:absolute;inset:0;z-index:8;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:42px;text-align:center;padding:0 80px;background:radial-gradient(60% 55% at 50% 50%, rgba(5,7,15,.55), rgba(5,7,15,.92));opacity:0;visibility:hidden;}
   #endemoji{font-size:170px;line-height:1;}
