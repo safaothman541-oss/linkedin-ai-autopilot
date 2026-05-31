@@ -142,6 +142,7 @@ function buildComposition(content, D, compId, words, images) {
   const tag = esc((content.tagLabel || "AI DAILY").toUpperCase());
   const cta = esc(content.cta || "Follow for more");
   const handle = esc(content.handle || "");
+  const hook = esc(content.title || content.hook || "AI Update");
 
   return `<!DOCTYPE html>
 <html>
@@ -167,6 +168,10 @@ function buildComposition(content, D, compId, words, images) {
        border:2px solid rgba(34,227,195,.55);color:${C_TEAL};
        font-size:38px;font-weight:800;letter-spacing:3px;white-space:nowrap;backdrop-filter:blur(8px);}
 
+  #hookcard{position:absolute;inset:0;z-index:7;display:flex;align-items:center;justify-content:center;padding:0 70px;
+            background:radial-gradient(60% 50% at 50% 45%, rgba(5,7,15,.28), rgba(5,7,15,.82));opacity:0;visibility:hidden;}
+  #hooktext{color:${INK};font-size:120px;font-weight:900;line-height:1.0;letter-spacing:-2px;text-align:center;
+            text-shadow:0 12px 55px rgba(0,0,0,.7);}
   #capwrap{position:absolute;left:54px;right:54px;top:50%;transform:translateY(-50%);
            min-height:620px;display:flex;align-items:center;justify-content:center;z-index:5;}
   .capline{position:absolute;width:100%;display:flex;flex-direction:column;align-items:center;gap:26px;
@@ -201,6 +206,8 @@ function buildComposition(content, D, compId, words, images) {
     <div id="barwrap" class="clip" data-start="0" data-duration="${D.toFixed(2)}" data-track-index="2"><div id="bar"></div></div>
     <div id="tag" class="clip" data-start="0" data-duration="${D.toFixed(2)}" data-track-index="2">${tag}</div>
 
+    <div id="hookcard" class="clip" data-start="0" data-duration="${D.toFixed(2)}" data-track-index="5"><div id="hooktext">${hook}</div></div>
+
     <div id="capwrap" class="clip" data-start="0" data-duration="${D.toFixed(2)}" data-track-index="3">
       ${linesHtml}
     </div>
@@ -228,8 +235,9 @@ function buildComposition(content, D, compId, words, images) {
       // background scenes: fade + slow Ken Burns zoom; a new image every SS seconds
       for (let i = 0; i < SCENES; i++) {
         const s = i * SS;
-        tl.fromTo("#sc" + i, { autoAlpha: 0, scale: 1.08 }, { autoAlpha: 1, duration: 0.7, ease: "power1.out" }, Math.max(0, s - 0.35));
-        tl.to("#sc" + i, { scale: 1.22, duration: SS + 1.4, ease: "none" }, Math.max(0, s - 0.35));
+        var dx = (i % 2 === 0) ? 55 : -55, dy = (i % 2 === 0) ? -38 : 42;
+        tl.fromTo("#sc" + i, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.7, ease: "power1.out" }, Math.max(0, s - 0.35));
+        tl.fromTo("#sc" + i, { scale: 1.14, x: -dx, y: -dy }, { scale: 1.3, x: dx, y: dy, duration: SS + 1.7, ease: "none" }, Math.max(0, s - 0.35));
         if (i < SCENES - 1) tl.to("#sc" + i, { autoAlpha: 0, duration: 0.7, ease: "power1.in" }, s + SS - 0.35);
       }
 
@@ -239,6 +247,12 @@ function buildComposition(content, D, compId, words, images) {
       // intro chrome
       tl.fromTo("#tag", { opacity: 0, y: -60, scale: .8 }, { opacity: 1, y: 0, scale: 1, duration: .55, ease: "back.out(2)" }, .05);
       tl.fromTo("#handle", { opacity: 0, y: 30 }, { opacity: .92, y: 0, duration: .6 }, .4);
+
+      // hook card: bold title for the first ~1.9s, then hands off to the captions
+      tl.fromTo("#hookcard", { autoAlpha: 0 }, { autoAlpha: 1, duration: .25 }, 0);
+      tl.fromTo("#hooktext", { scale: .55, y: 50, opacity: 0 }, { scale: 1, y: 0, opacity: 1, duration: .6, ease: "back.out(1.9)" }, .1);
+      tl.to("#hooktext", { scale: 1.07, duration: 1.2, ease: "sine.inOut" }, .7);
+      tl.to("#hookcard", { autoAlpha: 0, duration: .4 }, 1.9);
 
       // kinetic captions (synced to voice via Whisper word times)
       LINES.forEach(function (ln) {
