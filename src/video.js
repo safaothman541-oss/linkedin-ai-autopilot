@@ -458,5 +458,19 @@ export async function makeVideo({ content, workdir, voice = "af_heart" }) {
   });
 
   if (!fs.existsSync(out)) throw new Error("Render finished but video.mp4 was not produced.");
+
+  // Compress to a Telegram/LinkedIn-friendly H.264 mp4 (small + widely compatible).
+  const mb = (f) => (fs.statSync(f).size / 1048576).toFixed(1);
+  const finalOut = path.join(workdir, "final.mp4");
+  try {
+    sh(`ffmpeg -y -i "${out}" -c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p -movflags +faststart -c:a aac -b:a 160k "${finalOut}"`, { cwd: project });
+    if (fs.existsSync(finalOut) && fs.statSync(finalOut).size > 10000) {
+      console.log(`Video size: raw ${mb(out)}MB -> final ${mb(finalOut)}MB`);
+      return finalOut;
+    }
+  } catch (e) {
+    console.error("compress failed, using raw render:", e.message);
+  }
+  console.log(`Video size: ${mb(out)}MB (uncompressed)`);
   return out;
 }

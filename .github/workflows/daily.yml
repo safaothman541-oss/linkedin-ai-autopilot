@@ -62,3 +62,11 @@ jobs:
           TTS_VOICE: ${{ vars.TTS_VOICE || 'af_heart' }}
           BRAND_HANDLE: ${{ vars.BRAND_HANDLE || '' }}
         run: node src/run.js
+
+      - name: Upload video artifact (download/preview)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-video
+          path: video.mp4
+          if-no-files-found: ignore

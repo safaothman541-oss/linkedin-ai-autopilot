@@ -46,6 +46,7 @@ async function main() {
   // 2) Video (HyperFrames)
   const workdir = fs.mkdtempSync(path.join(os.tmpdir(), "hf-"));
   const videoFile = await makeVideo({ content, workdir, voice: env.TTS_VOICE || "af_heart" });
+  try { fs.copyFileSync(videoFile, "video.mp4"); } catch {}
 
   // 3) Always deliver the asset + caption to Telegram (your safety net / approval copy)
   await sendVideo({ ...TG, file: videoFile, caption: postText });
