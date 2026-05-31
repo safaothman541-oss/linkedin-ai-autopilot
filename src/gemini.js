@@ -4,23 +4,30 @@
 const MODEL = "gemini-2.5-flash";
 const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
-const PROMPT = (angle, source) => `You are a senior AI engineer writing a daily LinkedIn post.
-Today's content angle: "${angle}".
-Use this fresh news item as inspiration (rewrite in your own words, do not copy):
+const PROMPT = (angle, source) => `You are a viral short-form content creator AND a senior AI engineer.
+You write daily 9:16 vertical videos (LinkedIn / Reels / TikTok style) about AI & ML.
+Today's angle: "${angle}".
+Use this fresh news item as inspiration (rewrite completely in your own words, never copy):
 TITLE: ${source.title}
 SUMMARY: ${source.summary}
 
-Write punchy, specific, non-generic content for an audience of AI/ML engineers and builders.
-Return STRICT JSON (no markdown) with exactly these keys:
+GOAL: stop the scroll. Be punchy, specific, surprising, and concrete — no fluff, no generic buzzwords.
+The "script" is spoken aloud by a TTS voice AND shown as fast word-by-word captions, so:
+- Use SHORT, punchy sentences (3-9 words each). Conversational and energetic.
+- Open with a bold hook in the first sentence. End by teasing a follow.
+- Avoid hashtags, emojis, URLs, parentheses, and quotation marks INSIDE the script (they read awkwardly as captions).
+
+Return STRICT JSON (no markdown, no backticks) with EXACTLY these keys:
 {
-  "title": "a 3-6 word on-screen hook for the video",
-  "hook": "the first line of the post, scroll-stopping",
-  "bullets": ["3 short on-screen points, max 7 words each", "...", "..."],
-  "script": "a spoken voiceover narration, ~70-85 words, natural and energetic, that matches the on-screen text",
+  "title": "a 3-6 word scroll-stopping on-screen headline (Title Case)",
+  "hook": "the scroll-stopping first line of the written post",
+  "bullets": ["3 punchy takeaways, max 6 words each", "...", "..."],
+  "script": "spoken voiceover, 55-80 words, short punchy sentences, energetic, matches the captions",
+  "keywords": ["6-10 single power-words from the script to visually highlight, e.g. names, numbers, verbs"],
   "post": "the full LinkedIn post: hook + 3 bullet lines (use • ) + a closing question. 120-180 words.",
   "hashtags": ["#AI", "#...", "#...", "#...", "#..."],
   "description": "one-sentence summary",
-  "cta": "a 2-4 word call to action for the end card"
+  "cta": "a punchy 2-4 word end-card line (e.g. 'Follow for more', 'Save this')"
 }`;
 
 export async function generateContent({ angle, source, apiKey }) {
@@ -59,6 +66,7 @@ export async function generateContent({ angle, source, apiKey }) {
   obj.bullets = Array.isArray(obj.bullets) ? obj.bullets.slice(0, 3) : [];
   while (obj.bullets.length < 3) obj.bullets.push("");
   obj.hashtags = Array.isArray(obj.hashtags) ? obj.hashtags.slice(0, 5) : ["#AI"];
+  obj.keywords = Array.isArray(obj.keywords) ? obj.keywords.slice(0, 12) : [];
   obj.script ||= obj.post || obj.title;
   obj.cta ||= "Follow for more";
   obj.post ||= obj.hook || obj.title;
