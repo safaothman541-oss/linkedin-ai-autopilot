@@ -69,7 +69,7 @@ function pickEmoji(text, idx) {
 }
 
 // Build the composition. words = [{text,start,end}] from Whisper (may be empty -> estimate).
-function buildComposition(content, D, compId, words, images) {
+function buildComposition(content, D, compId, words, images, audioSrc = "assets/narration.wav") {
   const W = 1080, H = 1920;
   const END_DUR = Math.min(2.8, D * 0.22);
   const CAP_START = 0.35;
@@ -221,7 +221,7 @@ function buildComposition(content, D, compId, words, images) {
       <div id="endhandle">${handle}</div>
     </div>
 
-    <audio id="vo" data-start="0" data-duration="${D.toFixed(2)}" data-track-index="9" src="assets/narration.wav"></audio>
+    <audio id="vo" data-start="0" data-duration="${D.toFixed(2)}" data-track-index="9" src="${audioSrc}"></audio>
 
     <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
     <script>
@@ -360,6 +360,46 @@ async function fetchImages(content, numScenes, destDir) {
   return out;
 }
 
+// Download an instrumental background track from Jamendo (free, keyed). Best-effort.
+async function fetchMusic(content, destDir) {
+  const cid = process.env.JAMENDO_CLIENT_ID;
+  if (!cid) return null;
+  const moods = ["upbeat+electronic", "corporate+inspiring", "energetic+technology", "ambient+electronic"];
+  const tags = moods[(content.tagLabel || "").length % moods.length];
+  const url = `https://api.jamendo.com/v3.0/tracks/?client_id=${cid}&format=json&limit=10&audioformat=mp32&order=popularity_total&vocalinstrumental=instrumental&fuzzytags=${tags}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) { console.log("  music: jamendo http " + res.status); return null; }
+    const j = await res.json();
+    const tracks = (j.results || []).filter((t) => t.audio);
+    if (!tracks.length) { console.log("  music: no jamendo tracks"); return null; }
+    const pick = tracks[Math.min(2, tracks.length - 1)];
+    const file = path.join(destDir, "music.mp3");
+    if (await fetchOne(pick.audio, file, 30000)) {
+      console.log(`  music: "${pick.name}" by ${pick.artist_name}`);
+      return file;
+    }
+  } catch (e) { console.log("  music fetch failed: " + e.message); }
+  return null;
+}
+
+// Mix the narration (dominant) with the music bed (soft, faded). Best-effort -> clean on failure.
+function mixAudio(project, D, musicAbs) {
+  const cleanRel = "assets/narration.wav";
+  if (!musicAbs) return cleanRel;
+  try {
+    const cleanAbs = path.join(project, "assets", "narration.wav");
+    const finalAbs = path.join(project, "assets", "narration_final.wav");
+    const dur = D.toFixed(2);
+    const fo = Math.max(0.1, D - 2).toFixed(2);
+    sh(`ffmpeg -y -i "${cleanAbs}" -i "${musicAbs}" -filter_complex "[1:a]aresample=24000,atrim=0:${dur},volume=0.16,afade=t=in:d=1.5,afade=t=out:st=${fo}:d=2[m];[0:a]aresample=24000,volume=1.25[v];[v][m]amix=inputs=2:duration=first:normalize=0[out]" -map "[out]" -ar 24000 "${finalAbs}"`, { cwd: project });
+    if (fs.existsSync(finalAbs) && fs.statSync(finalAbs).size > 5000) return "assets/narration_final.wav";
+  } catch (e) {
+    console.error("music mix failed, using clean narration:", e.message);
+  }
+  return cleanRel;
+}
+
 export async function makeVideo({ content, workdir, voice = "af_heart" }) {
   const project = path.join(workdir, "project");
   const compId = "daily";
@@ -399,8 +439,17 @@ export async function makeVideo({ content, workdir, voice = "af_heart" }) {
   const images = await fetchImages(content, numScenes, assets).catch(() => new Array(numScenes));
   console.log(`Scenes: ${numScenes} | images: ${images.filter(Boolean).length}/${numScenes} | caption words: ${words.length}`);
 
+  // 3c) Background music (Jamendo) mixed under the narration (best-effort).
+  let audioSrc = "assets/narration.wav";
+  try {
+    const musicAbs = await fetchMusic(content, assets);
+    audioSrc = mixAudio(project, D, musicAbs);
+  } catch (e) {
+    console.error("music step skipped:", e.message);
+  }
+
   // 4) Build composition + render.
-  const html = buildComposition(content, D, compId, words, images);
+  const html = buildComposition(content, D, compId, words, images, audioSrc);
   fs.writeFileSync(path.join(project, "index.html"), html);
 
   const out = path.join(workdir, "video.mp4");
