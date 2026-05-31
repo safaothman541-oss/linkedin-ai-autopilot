@@ -51,6 +51,8 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           JAMENDO_CLIENT_ID: ${{ secrets.JAMENDO_CLIENT_ID }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
           LINKEDIN_REFRESH_TOKEN: ${{ secrets.LINKEDIN_REFRESH_TOKEN }}
           LINKEDIN_CLIENT_ID: ${{ secrets.LINKEDIN_CLIENT_ID }}
@@ -61,6 +63,7 @@ jobs:
           POST_MODE: ${{ vars.POST_MODE || 'auto' }}
           TTS_VOICE: ${{ vars.TTS_VOICE || 'af_heart' }}
           BRAND_HANDLE: ${{ vars.BRAND_HANDLE || '' }}
+          VIDEOS_PER_RUN: ${{ vars.VIDEOS_PER_RUN || '3' }}
         run: node src/run.js
 
       - name: Upload video artifact (download/preview)

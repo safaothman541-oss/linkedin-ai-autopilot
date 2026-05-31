@@ -270,23 +270,62 @@ async function fetchPexels(query, key, perPage) {
   } catch { return []; } finally { clearTimeout(to); }
 }
 
-async function fetchImages(numScenes, destDir) {
+// Cloudflare Workers AI (FLUX) — custom, high-quality AI images. Best source.
+async function fetchCloudflare(prompt, file) {
+  const acct = process.env.CF_ACCOUNT_ID, token = process.env.CF_API_TOKEN;
+  if (!acct || !token) return false;
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), 45000);
+  try {
+    const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${acct}/ai/run/@cf/black-forest-labs/flux-1-schnell`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: String(prompt).slice(0, 1800), steps: 6 }),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) return false;
+    const j = await res.json();
+    if (j && j.success && j.result && j.result.image) {
+      const buf = Buffer.from(j.result.image, "base64");
+      if (buf.length > 3000) { fs.writeFileSync(file, buf); return true; }
+    }
+  } catch { /* fall through */ } finally { clearTimeout(to); }
+  return false;
+}
+
+// Background image per scene. Priority: Cloudflare FLUX (custom AI) -> Pexels -> Pollinations -> gradient.
+async function fetchImages(content, numScenes, destDir) {
   const out = new Array(numScenes);
-  const key = process.env.PEXELS_API_KEY;
+  const subjects = (content.keywords && content.keywords.length ? content.keywords : []).concat(AI_QUERIES);
   const offset = Math.floor(Math.random() * AI_QUERIES.length);
+
+  // 1) Cloudflare FLUX — custom AI images per topic
+  if (process.env.CF_ACCOUNT_ID && process.env.CF_API_TOKEN) {
+    for (let i = 0; i < numScenes; i++) {
+      const subj = subjects[i % subjects.length] || "artificial intelligence";
+      const prompt = `${subj}, artificial intelligence, futuristic technology, cinematic neon lighting, ultra detailed, dramatic, high quality`;
+      const file = path.join(destDir, `img${i}.jpg`);
+      if (await fetchCloudflare(prompt, file)) { out[i] = `assets/img${i}.jpg`; console.log(`  image ${i + 1}/${numScenes} ok (cloudflare: ${subj})`); }
+      else console.log(`  image ${i + 1}/${numScenes} cloudflare failed`);
+    }
+    if (out.filter(Boolean).length) return out;
+    console.log("  cloudflare unavailable -> pexels");
+  }
+
+  // 2) Pexels stock
+  const key = process.env.PEXELS_API_KEY;
   if (key) {
     for (let i = 0; i < numScenes; i++) {
+      if (out[i]) continue;
       const q = AI_QUERIES[(offset + i) % AI_QUERIES.length];
       const urls = await fetchPexels(q, key, 8);
       const u = urls.length ? urls[i % urls.length] : null;
-      if (u) {
-        const file = path.join(destDir, `img${i}.jpg`);
-        if (await fetchOne(u, file, 30000)) { out[i] = `assets/img${i}.jpg`; console.log(`  image ${i + 1}/${numScenes} ok (${q})`); continue; }
-      }
-      console.log(`  image ${i + 1}/${numScenes} no result for "${q}"`);
+      if (u) { const file = path.join(destDir, `img${i}.jpg`); if (await fetchOne(u, file, 30000)) { out[i] = `assets/img${i}.jpg`; console.log(`  image ${i + 1}/${numScenes} ok (pexels)`); } }
     }
     if (out.filter(Boolean).length) return out;
   }
+
+  // 3) Pollinations
   for (let i = 0; i < numScenes; i++) {
     if (out[i]) continue;
     const q = AI_QUERIES[(offset + i) % AI_QUERIES.length];
@@ -359,7 +398,7 @@ export async function makeVideo({ content, workdir, voice = "af_heart", style = 
 
   // Aurora style uses no photos (animated gradient) -> faster + distinct look.
   let images = [];
-  if (st.bg === "image") images = await fetchImages(numScenes, assets).catch(() => []);
+  if (st.bg === "image") images = await fetchImages(content, numScenes, assets).catch(() => []);
   console.log(`Scenes: ${numScenes} | images: ${images.filter(Boolean).length} | words: ${words.length}`);
 
   let audioSrc = "assets/narration.wav";
