@@ -267,27 +267,40 @@ function buildComposition(content, D, compId, words, images) {
 </html>`;
 }
 
-// Fetch AI background images (free, no key). Best-effort: failures fall back to gradients.
+async function fetchOne(url, file, timeoutMs) {
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal });
+    if (!res.ok) return false;
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > 3000) { fs.writeFileSync(file, buf); return true; }
+    return false;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(to);
+  }
+}
+
+// Fetch AI background images ONE BY ONE (Pollinations free tier throttles concurrency),
+// with retries. Failures fall back to gradients so the video never breaks.
 async function fetchImages(content, numScenes, destDir) {
   const kws = (content.keywords && content.keywords.length ? content.keywords : [content.title || "artificial intelligence"]);
   const title = content.title || "artificial intelligence";
   const out = new Array(numScenes);
-  await Promise.all(Array.from({ length: numScenes }, async (_, i) => {
+  for (let i = 0; i < numScenes; i++) {
     const kw = kws[i % kws.length] || title;
-    const prompt = `${title}, ${kw}, futuristic technology, cinematic lighting, vivid neon colors, ultra detailed, vertical poster`;
-    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1920&nologo=true&seed=${100 + i * 7}`;
+    const prompt = `${title}, ${kw}, futuristic technology, cinematic lighting, vivid neon colors, ultra detailed, vertical`;
+    const base = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1080&height=1920&nologo=true`;
     const file = path.join(destDir, `img${i}.jpg`);
-    try {
-      const ctrl = new AbortController();
-      const to = setTimeout(() => ctrl.abort(), 60000);
-      const res = await fetch(url, { signal: ctrl.signal });
-      clearTimeout(to);
-      if (res.ok) {
-        const buf = Buffer.from(await res.arrayBuffer());
-        if (buf.length > 3000) { fs.writeFileSync(file, buf); out[i] = `assets/img${i}.jpg`; }
-      }
-    } catch { /* leave undefined -> gradient fallback */ }
-  }));
+    let ok = false;
+    for (let attempt = 0; attempt < 3 && !ok; attempt++) {
+      ok = await fetchOne(base + `&seed=${100 + i * 7 + attempt * 1313}`, file, 85000);
+    }
+    if (ok) { out[i] = `assets/img${i}.jpg`; console.log(`  image ${i + 1}/${numScenes} ok`); }
+    else { console.log(`  image ${i + 1}/${numScenes} failed -> gradient`); }
+  }
   return out;
 }
 
@@ -316,10 +329,7 @@ export async function makeVideo({ content, workdir, voice = "af_heart" }) {
   const D = audioDuration(path.join(assets, "narration.wav"));
   const numScenes = Math.max(1, Math.ceil(D / SCENE_SECS));
 
-  // 3) In parallel: generate AI images (network) while we transcribe for word timing.
-  const imagesPromise = fetchImages(content, numScenes, assets).catch(() => new Array(numScenes));
-
-  // 3b) Whisper word-level timestamps for perfect caption sync (best-effort).
+  // 3) Whisper word-level timestamps for perfect caption sync (best-effort).
   let words = [];
   try {
     sh(`python3 "${TRANSCRIBE}" assets/narration.wav assets/words.json`, { cwd: project, env: { ...process.env } });
@@ -329,7 +339,8 @@ export async function makeVideo({ content, workdir, voice = "af_heart" }) {
     console.error("Word timing unavailable, using estimate:", e.message);
   }
 
-  const images = await imagesPromise;
+  // 3b) Generate AI background images one-by-one (reliable on the free tier).
+  const images = await fetchImages(content, numScenes, assets).catch(() => new Array(numScenes));
   console.log(`Scenes: ${numScenes} | images: ${images.filter(Boolean).length}/${numScenes} | caption words: ${words.length}`);
 
   // 4) Build composition + render.
