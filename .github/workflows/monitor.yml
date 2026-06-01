@@ -1,0 +1,45 @@
+name: LinkedIn Monitor
+
+# Check watched LinkedIn accounts (Apify) every 8h and send new posts to
+# Telegram + channel (EN/AR/CKB).
+on:
+  schedule:
+    - cron: "0 9,17 * * *"
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - name: Restore monitor state
+        uses: actions/cache@v4
+        with:
+          path: monitor-state.json
+          key: monitor-state-v1
+      - name: Install deps
+        run: npm install --no-audit --no-fund --ignore-scripts
+      - name: Run monitor
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_GROUP_ID: ${{ vars.TELEGRAM_GROUP_ID }}
+          MONITOR_ACCOUNTS: ${{ vars.MONITOR_ACCOUNTS }}
+          MONITOR_POSTS_PER_CHECK: ${{ vars.MONITOR_POSTS_PER_CHECK || '3' }}
+        run: node src/monitor/run-monitor.js
+      - name: Save monitor state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: monitor-state.json
+          key: monitor-state-v1-${{ github.run_id }}
