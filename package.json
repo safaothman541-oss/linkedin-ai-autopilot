@@ -5,14 +5,20 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "start": "node src/run.js",
-    "token": "node tools/get-linkedin-token.js"
+    "start": "node --env-file-if-exists=.env src/run.js",
+    "images": "node --env-file-if-exists=.env src/images/run-images.js",
+    "monitor": "node --env-file-if-exists=.env src/monitor/run-monitor.js",
+    "email": "node --env-file-if-exists=.env src/email/run-email.js",
+    "token": "node --env-file-if-exists=.env tools/get-linkedin-token.js"
   },
   "engines": {
     "node": ">=22"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.65",
     "hyperframes": "^0.6.0",
+    "imapflow": "^1.3.5",
+    "mailparser": "^3.9.9",
     "rss-parser": "^3.13.0"
   }
 }
