@@ -1,0 +1,41 @@
+name: Email Alerts
+
+# AI-judged important-email alerts every 30 minutes.
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: email
+  cancel-in-progress: false
+
+jobs:
+  email:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - name: Restore email state
+        uses: actions/cache@v4
+        with:
+          path: email-state.json
+          key: email-state-v1
+      - name: Install deps
+        run: npm install --no-audit --no-fund --ignore-scripts
+      - name: Run email monitor
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node src/email/run-email.js
+      - name: Save email state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: email-state.json
+          key: email-state-v1-${{ github.run_id }}
