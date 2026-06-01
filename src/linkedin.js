@@ -114,3 +114,52 @@ export async function postVideoToLinkedIn({ token, personUrn, file, text, title 
   await new Promise((r) => setTimeout(r, 8000));
   return createPost(token, personUrn, init.video, text, title);
 }
+
+// ---- Image posts ------------------------------------------------------------
+// Single-image upload is simpler than video: initialize → PUT the bytes → post.
+async function initializeImageUpload(token, owner) {
+  const res = await fetch(`${REST}/images?action=initializeUpload`, {
+    method: "POST",
+    headers: headers(token, { "Content-Type": "application/json" }),
+    body: JSON.stringify({ initializeUploadRequest: { owner } }),
+  });
+  if (!res.ok) throw new Error(`image initializeUpload ${res.status}: ${await res.text()}`);
+  return (await res.json()).value; // { uploadUrl, image }
+}
+
+async function uploadImageBinary(uploadUrl, token, buffer) {
+  const up = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "image/png" },
+    body: buffer,
+  });
+  if (!up.ok) throw new Error(`image upload ${up.status}: ${await up.text()}`);
+}
+
+async function createImagePost(token, author, imageUrn, text, altText) {
+  const res = await fetch(`${REST}/posts`, {
+    method: "POST",
+    headers: headers(token, { "Content-Type": "application/json" }),
+    body: JSON.stringify({
+      author,
+      commentary: escapeCommentary(text),
+      visibility: "PUBLIC",
+      distribution: { feedDistribution: "MAIN_FEED", targetEntities: [], thirdPartyDistributionChannels: [] },
+      content: { media: { altText: (altText || "").slice(0, 300), id: imageUrn } },
+      lifecycleState: "PUBLISHED",
+      isReshareDisabledByAuthor: false,
+    }),
+  });
+  if (!res.ok) throw new Error(`createPost (image) ${res.status}: ${await res.text()}`);
+  return res.headers.get("x-restli-id") || res.headers.get("x-linkedin-id") || "posted";
+}
+
+// Full flow for a single-image post: returns the post id (or throws).
+export async function postImageToLinkedIn({ token, personUrn, file, text, altText }) {
+  const buffer = fs.readFileSync(file);
+  const init = await initializeImageUpload(token, personUrn);
+  await uploadImageBinary(init.uploadUrl, token, buffer);
+  // brief settle so the asset is registered before we reference it in a post
+  await new Promise((r) => setTimeout(r, 3000));
+  return createImagePost(token, personUrn, init.image, text, altText);
+}
