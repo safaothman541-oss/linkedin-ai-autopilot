@@ -1,0 +1,82 @@
+name: Daily LinkedIn Image Posts
+
+# Three posts a day, one pillar each (spaced out for better reach):
+#   08:00 UTC → Claude skill   ·   12:00 UTC → 3-model face-off   ·   16:00 UTC → ERPIQ deep-dive
+on:
+  schedule:
+    - cron: "0 8 * * *"
+    - cron: "0 12 * * *"
+    - cron: "0 16 * * *"
+  workflow_dispatch:
+    inputs:
+      pillar:
+        description: "Which post to make: claude | models | erp | all"
+        required: false
+        default: "all"
+
+concurrency:
+  group: daily-images
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install fonts (for canvas text rendering)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-dejavu-core fonts-noto-core
+
+      - name: Install dependencies
+        # --ignore-scripts: the image pipeline only needs @napi-rs/canvas (prebuilt
+        # binary, no build step). Skips hyperframes' browser download (video-only).
+        run: npm install --no-audit --no-fund --ignore-scripts
+
+      - name: Resolve which pillar to post
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "PILLAR=${{ github.event.inputs.pillar }}" >> "$GITHUB_ENV"
+          else
+            case "${{ github.event.schedule }}" in
+              "0 8 * * *")  echo "PILLAR=claude" >> "$GITHUB_ENV" ;;
+              "0 12 * * *") echo "PILLAR=models" >> "$GITHUB_ENV" ;;
+              "0 16 * * *") echo "PILLAR=erp"    >> "$GITHUB_ENV" ;;
+              *)            echo "PILLAR=all"    >> "$GITHUB_ENV" ;;
+            esac
+          fi
+
+      - name: Generate + post image
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+          LINKEDIN_REFRESH_TOKEN: ${{ secrets.LINKEDIN_REFRESH_TOKEN }}
+          LINKEDIN_CLIENT_ID: ${{ secrets.LINKEDIN_CLIENT_ID }}
+          LINKEDIN_CLIENT_SECRET: ${{ secrets.LINKEDIN_CLIENT_SECRET }}
+          LINKEDIN_PERSON_URN: ${{ secrets.LINKEDIN_PERSON_URN }}
+          LINKEDIN_VERSION: ${{ vars.LINKEDIN_VERSION || '202506' }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          IMAGES_POST_MODE: ${{ vars.IMAGES_POST_MODE || 'auto' }}
+          IMAGE_BG_MODE: ${{ vars.IMAGE_BG_MODE || 'hybrid' }}
+          BRAND_HANDLE: ${{ vars.BRAND_HANDLE || '' }}
+          BRAND_TAGLINE: ${{ vars.BRAND_TAGLINE || 'AI · Engineering · ERPIQ' }}
+        run: node src/images/run-images.js
+
+      - name: Upload image artifact (preview)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-images
+          path: image-*.png
+          if-no-files-found: ignore
