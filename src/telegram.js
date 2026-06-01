@@ -13,6 +13,29 @@ export async function sendMessage({ token, chatId, text }) {
   }).catch(() => {});
 }
 
+export async function sendPhoto({ token, chatId, file, caption }) {
+  if (!token || !chatId) return;
+  try {
+    const buf = fs.readFileSync(file);
+    const form = new FormData();
+    form.append("chat_id", String(chatId));
+    if (caption) form.append("caption", caption.slice(0, 1024));
+    form.append("photo", new Blob([buf], { type: "image/png" }), path.basename(file));
+    const res = await fetch(api(token, "sendPhoto"), { method: "POST", body: form });
+    if (!res.ok) {
+      // photos must be <10MB / valid; fall back to sending as a document
+      const form2 = new FormData();
+      form2.append("chat_id", String(chatId));
+      if (caption) form2.append("caption", caption.slice(0, 1024));
+      form2.append("document", new Blob([buf], { type: "image/png" }), path.basename(file));
+      const res2 = await fetch(api(token, "sendDocument"), { method: "POST", body: form2 });
+      if (!res2.ok) await sendMessage({ token, chatId, text: caption || "Image ready (couldn't attach)." });
+    }
+  } catch (e) {
+    await sendMessage({ token, chatId, text: `Image ready but Telegram upload failed: ${e.message}` });
+  }
+}
+
 export async function sendVideo({ token, chatId, file, caption }) {
   if (!token || !chatId) return;
   try {
