@@ -144,12 +144,13 @@ async function main() {
     try { posts = await fetchPosts(acc); } catch (e) { await sendMessage({ ...STATUS, text: `⚠️ Monitor ${acc} failed: ${e.message}` }); continue; }
     checked++;
     const firstTime = !state.started[acc];
-    // newest first is typical; ensure newest-first by date desc if available
     const fresh = posts.filter((p) => !state.seen[p.urn]);
-    // baseline on first run: send only the latest 1, mark the rest seen silently
-    const toSend = firstTime ? fresh.slice(0, 1) : fresh;
-    for (const p of toSend.reverse()) { await deliver(p); delivered++; }
-    for (const p of posts) state.seen[p.urn] = true;
+    // FIRST run for an account: baseline only — send NOTHING (so a lost state can
+    // never re-send old posts). After that, send only genuinely-new posts.
+    if (!firstTime) {
+      for (const p of fresh.slice().reverse()) { await deliver(p); delivered++; }
+    }
+    for (const p of posts) state.seen[p.urn] = true; // mark everything seen either way
     state.started[acc] = true;
   }
 
