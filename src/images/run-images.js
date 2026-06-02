@@ -14,7 +14,13 @@ import { getAccessToken, getPersonUrn, postImageToLinkedIn } from "../linkedin.j
 import { sendMessage, sendPhoto } from "../telegram.js";
 
 const env = process.env;
-const TG = { token: env.TELEGRAM_BOT_TOKEN, chatId: env.TELEGRAM_CHAT_ID };
+// Default destination: the topic-group's Drafts topic if configured; else the private chat.
+const TG = env.TELEGRAM_TOPIC_CHAT_ID
+  ? { token: env.TELEGRAM_BOT_TOKEN, chatId: env.TELEGRAM_TOPIC_CHAT_ID, threadId: env.TELEGRAM_TOPIC_DRAFTS }
+  : { token: env.TELEGRAM_BOT_TOKEN, chatId: env.TELEGRAM_CHAT_ID };
+const STATUS = env.TELEGRAM_TOPIC_CHAT_ID
+  ? { token: env.TELEGRAM_BOT_TOKEN, chatId: env.TELEGRAM_TOPIC_CHAT_ID, threadId: env.TELEGRAM_TOPIC_STATUS }
+  : TG;
 const POST_MODE = (env.IMAGES_POST_MODE || "auto").toLowerCase();
 const BG_MODE = (env.IMAGE_BG_MODE || "hybrid").toLowerCase();
 const OFFSET = parseInt(env.IMAGE_OFFSET || "0", 10) || 0;
@@ -87,11 +93,11 @@ async function main() {
   const results = [];
   for (const pillar of pillars) await runOne(pillar, li, results);
 
-  await sendMessage({ ...TG, text: `🖼️ Image batch done (mode: ${POST_MODE})\n` + results.join("\n") });
+  await sendMessage({ ...STATUS, text: `🖼️ Image batch done (mode: ${POST_MODE})\n` + results.join("\n") });
 }
 
 main().catch(async (e) => {
   console.error(e);
-  await sendMessage({ ...TG, text: `❌ Image pipeline error: ${e.message}` });
+  await sendMessage({ ...STATUS, text: `❌ Image pipeline error: ${e.message}` });
   process.exit(1);
 });
