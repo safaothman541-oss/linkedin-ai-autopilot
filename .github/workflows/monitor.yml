@@ -20,11 +20,17 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: "22" }
-      - name: Restore monitor state
+      # Rolling cache: unique key per run (always saved at job end) + restore-keys
+      # prefix so every run restores the MOST RECENT previous state. Without this,
+      # an exact key that never matches the save key makes every run start fresh
+      # and re-send old posts. v2 = clean baseline.
+      - name: Restore monitor state (auto-saves at job end)
         uses: actions/cache@v4
         with:
           path: monitor-state.json
-          key: monitor-state-v1
+          key: monitor-state-v2-${{ github.run_id }}
+          restore-keys: |
+            monitor-state-v2-
       - name: Install deps
         run: npm install --no-audit --no-fund --ignore-scripts
       - name: Run monitor
@@ -40,11 +46,3 @@ jobs:
           TELEGRAM_TOPIC_MONITOR: ${{ vars.TELEGRAM_TOPIC_MONITOR }}
           TELEGRAM_TOPIC_STATUS: ${{ vars.TELEGRAM_TOPIC_STATUS }}
         run: node src/monitor/run-monitor.js
-      - name: Save monitor state
-        if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: monitor-state.json
-          key: monitor-state-v1-${{ github.run_id }}
-
-# nudge e0a5948
