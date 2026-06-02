@@ -36,6 +36,9 @@ jobs:
           TELEGRAM_GROUP_ID: ${{ vars.TELEGRAM_GROUP_ID }}
           MONITOR_ACCOUNTS: ${{ vars.MONITOR_ACCOUNTS }}
           MONITOR_POSTS_PER_CHECK: ${{ vars.MONITOR_POSTS_PER_CHECK || '3' }}
+          TELEGRAM_TOPIC_CHAT_ID: ${{ vars.TELEGRAM_TOPIC_CHAT_ID }}
+          TELEGRAM_TOPIC_MONITOR: ${{ vars.TELEGRAM_TOPIC_MONITOR }}
+          TELEGRAM_TOPIC_STATUS: ${{ vars.TELEGRAM_TOPIC_STATUS }}
         run: node src/monitor/run-monitor.js
       - name: Save monitor state
         if: always()
