@@ -11,7 +11,13 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const STATE_FILE = path.join(HERE, "..", "..", "monitor-state.json");
 
 const env = process.env;
-const TG = { token: env.TELEGRAM_BOT_TOKEN, chatId: env.TELEGRAM_CHAT_ID };
+// destination: Monitor topic in the group; falls back to private chat
+const TG = env.TELEGRAM_TOPIC_CHAT_ID
+  ? { token: env.TELEGRAM_BOT_TOKEN, chatId: env.TELEGRAM_TOPIC_CHAT_ID, threadId: env.TELEGRAM_TOPIC_MONITOR }
+  : { token: env.TELEGRAM_BOT_TOKEN, chatId: env.TELEGRAM_CHAT_ID };
+const STATUS = env.TELEGRAM_TOPIC_CHAT_ID
+  ? { token: env.TELEGRAM_BOT_TOKEN, chatId: env.TELEGRAM_TOPIC_CHAT_ID, threadId: env.TELEGRAM_TOPIC_STATUS }
+  : TG;
 // Must match the worker's marker so a reply to a monitored post triggers the same buttons.
 const CAPTION_MARK = "📝 CAPTION (posted with your image):";
 const ACTOR = "apimaestro~linkedin-profile-posts";
@@ -87,28 +93,27 @@ async function translate(text) {
 }
 
 
-async function sendPhotoUrl(chatId, photo, caption) {
+async function sendPhotoUrl(chatId, photo, caption, threadId) {
   try {
+    const body = { chat_id: chatId, photo, caption: (caption || "").slice(0, 1024) };
+    if (threadId) body.message_thread_id = Number(threadId);
     const r = await fetch(`https://api.telegram.org/bot${TG.token}/sendPhoto`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, photo, caption: (caption || "").slice(0, 1024) }),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
     });
     return r.ok;
   } catch { return false; }
 }
 
-async function deliverTo(chatId, post, imgPrompt) {
+async function deliverTo(chatId, post, imgPrompt, threadId) {
   const header = `📥 ${post.author}${post.date ? ` · ${post.date}` : ""}`;
-  if (post.image) await sendPhotoUrl(chatId, post.image, header);
-  // Content goes LAST after CAPTION_MARK so the worker can recover it when you
-  // reply to THIS message with your image (→ same LinkedIn/Channel buttons).
+  if (post.image) await sendPhotoUrl(chatId, post.image, header, threadId);
   const body =
     `${post.image ? "" : header + "\n\n"}` +
     (imgPrompt ? `🎨 IMAGE PROMPT (make your own visual):\n${imgPrompt}\n\n` : "") +
     `🔗 Original: ${post.url}\n\n` +
     `↩️ Reply to THIS message with YOUR image to post it.\n\n` +
     `${CAPTION_MARK}\n${post.text}`;
-  await sendMessage({ token: TG.token, chatId, text: body.slice(0, 4000) });
+  await sendMessage({ token: TG.token, chatId, text: body.slice(0, 4000), threadId });
 }
 
 // public channel: clean repost (NO prompt, NO raw image link) + AR + CKB translations
@@ -123,8 +128,8 @@ async function deliverToChannel(chatId, post) {
 
 async function deliver(post) {
   const imgPrompt = await genImagePrompt(post.text);
-  await deliverTo(TG.chatId, post, imgPrompt);                          // private: content + your image prompt
-  if (env.TELEGRAM_GROUP_ID) await deliverToChannel(env.TELEGRAM_GROUP_ID, post); // channel: clean + AR + CKB
+  await deliverTo(TG.chatId, post, imgPrompt, TG.threadId);             // private/topic: content + your image prompt
+  if (env.TELEGRAM_GROUP_ID) await deliverToChannel(env.TELEGRAM_GROUP_ID, post); // public channel: clean + AR + CKB
 }
 
 async function main() {
@@ -135,7 +140,7 @@ async function main() {
 
   for (const acc of accounts()) {
     let posts;
-    try { posts = await fetchPosts(acc); } catch (e) { await sendMessage({ ...TG, text: `⚠️ Monitor ${acc} failed: ${e.message}` }); continue; }
+    try { posts = await fetchPosts(acc); } catch (e) { await sendMessage({ ...STATUS, text: `⚠️ Monitor ${acc} failed: ${e.message}` }); continue; }
     checked++;
     const firstTime = !state.started[acc];
     // newest first is typical; ensure newest-first by date desc if available
@@ -149,8 +154,8 @@ async function main() {
 
   saveState(state);
   const msg = delivered ? `✅ Monitor: sent ${delivered} new post(s) from ${checked} account(s).` : `🔁 Monitor: checked ${checked} account(s), nothing new.`;
-  await sendMessage({ ...TG, text: msg });
+  await sendMessage({ ...STATUS, text: msg });
   console.log(msg);
 }
 
-main().catch(async (e) => { console.error(e); await sendMessage({ ...TG, text: `❌ Monitor error: ${e.message}` }); process.exit(1); });
+main().catch(async (e) => { console.error(e); await sendMessage({ ...STATUS, text: `❌ Monitor error: ${e.message}` }); process.exit(1); });
