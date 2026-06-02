@@ -12,7 +12,10 @@ import { sendMessage } from "../telegram.js";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const STATE_FILE = path.join(HERE, "..", "..", "email-state.json");
 const env = process.env;
-const TG = { token: env.TELEGRAM_BOT_TOKEN, chatId: env.TELEGRAM_CHAT_ID };
+// destination: Email topic in the group; falls back to private chat
+const TG = env.TELEGRAM_TOPIC_CHAT_ID
+  ? { token: env.TELEGRAM_BOT_TOKEN, chatId: env.TELEGRAM_TOPIC_CHAT_ID, threadId: env.TELEGRAM_TOPIC_EMAIL }
+  : { token: env.TELEGRAM_BOT_TOKEN, chatId: env.TELEGRAM_CHAT_ID };
 const FIRST_RUN_SCAN = 10;   // emails to judge on the very first run (demo + baseline)
 const MAX_PER_RUN = 25;      // cap classifications per run (cost / spam guard)
 
