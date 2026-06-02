@@ -71,6 +71,9 @@ jobs:
           IMAGE_BG_MODE: ${{ vars.IMAGE_BG_MODE || 'hybrid' }}
           BRAND_HANDLE: ${{ vars.BRAND_HANDLE || '' }}
           BRAND_TAGLINE: ${{ vars.BRAND_TAGLINE || 'AI · Engineering · ERPIQ' }}
+          TELEGRAM_TOPIC_CHAT_ID: ${{ vars.TELEGRAM_TOPIC_CHAT_ID }}
+          TELEGRAM_TOPIC_DRAFTS: ${{ vars.TELEGRAM_TOPIC_DRAFTS }}
+          TELEGRAM_TOPIC_STATUS: ${{ vars.TELEGRAM_TOPIC_STATUS }}
         run: node src/images/run-images.js
 
       - name: Upload image artifact (preview)
