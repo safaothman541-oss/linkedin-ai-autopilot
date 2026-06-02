@@ -132,10 +132,10 @@ async function genDraft(env, pillar) {
 function draftMessage(pillar, n, d) {
   return `🟦 POST ${n}/3 · ${LABELS[pillar]}\n📌 ${d.title}\n\n↩️ Reply to THIS message with your image — I'll post it + the caption below to LinkedIn.\n\n🎨 IMAGE PROMPT (paste into any image generator):\n${d.imagePrompt}\n\n${CAPTION_MARK}\n${d.caption}`;
 }
-async function sendDrafts(env, chatId) {
+async function sendDrafts(env, chatId, threadId) {
   for (let i = 0; i < PILLARS.length; i++) {
-    try { const d = await genDraft(env, PILLARS[i]); await send(env, chatId, draftMessage(PILLARS[i], i + 1, d)); }
-    catch (e) { await send(env, chatId, `⚠️ Draft ${i + 1} failed: ${e.message}`); }
+    try { const d = await genDraft(env, PILLARS[i]); await sendTo(env, chatId, draftMessage(PILLARS[i], i + 1, d), threadId); }
+    catch (e) { await sendTo(env, chatId, `⚠️ Draft ${i + 1} failed: ${e.message}`, threadId); }
   }
 }
 
@@ -197,7 +197,10 @@ async function translate(env, text) {
 
 export default {
   async scheduled(event, env, ctx) {
-    if (env.ALLOWED_CHAT_ID) ctx.waitUntil(sendDrafts(env, env.ALLOWED_CHAT_ID));
+    // Daily cron: send drafts to the Drafts topic if configured, else the DM.
+    const chat = env.TELEGRAM_TOPIC_CHAT_ID || env.ALLOWED_CHAT_ID;
+    const thread = env.TELEGRAM_TOPIC_CHAT_ID ? env.TELEGRAM_TOPIC_DRAFTS : null;
+    if (chat) ctx.waitUntil(sendDrafts(env, chat, thread));
   },
   async fetch(request, env) {
     if (request.method === "GET") return new Response("AI bot is running ✅");
@@ -205,30 +208,51 @@ export default {
     let update; try { update = await request.json(); } catch { return new Response("ok"); }
     if (update.callback_query) {
       const cb = update.callback_query;
-      if (env.ALLOWED_CHAT_ID && String(cb.message?.chat?.id) !== String(env.ALLOWED_CHAT_ID)) { await answerCallback(env, cb.id); return new Response("ok"); }
+      if (!chatAllowed(env, cb.message?.chat?.id)) { await answerCallback(env, cb.id); return new Response("ok"); }
       try { await handleCallback(env, cb); } catch (e) { await answerCallback(env, cb.id, "⚠️ " + e.message); }
       return new Response("ok");
     }
     const msg = update.message || update.edited_message;
     if (!msg) return new Response("ok");
     const chatId = msg.chat.id;
-    if (env.ALLOWED_CHAT_ID && String(chatId) !== String(env.ALLOWED_CHAT_ID)) { await send(env, chatId, "🔒 This is a private bot."); return new Response("ok"); }
+    if (!chatAllowed(env, chatId)) { await send(env, chatId, "🔒 This is a private bot."); return new Response("ok"); }
     try {
       if (msg.photo && msg.photo.length) await handlePhoto(env, chatId, msg);
-      else if (msg.text) await handle(env, chatId, msg.text.trim());
+      else if (msg.text) await handle(env, chatId, msg.text.trim(), msg.message_thread_id);
     } catch (e) { await send(env, chatId, "⚠️ " + e.message); }
     return new Response("ok");
   },
 };
 
-// When you reply to a draft with a photo, ask WHERE to post (buttons).
+// Allow EITHER the private DM (ALLOWED_CHAT_ID) or the forum group (TELEGRAM_TOPIC_CHAT_ID).
+function chatAllowed(env, chatId) {
+  if (!chatId) return false;
+  const s = String(chatId);
+  const a = env.ALLOWED_CHAT_ID ? String(env.ALLOWED_CHAT_ID) : null;
+  const g = env.TELEGRAM_TOPIC_CHAT_ID ? String(env.TELEGRAM_TOPIC_CHAT_ID) : null;
+  if (!a && !g) return true;          // no restriction set
+  return (a && s === a) || (g && s === g);
+}
+
+// When you reply to a draft / monitor post with a photo, ask WHERE to post (buttons).
+// Works in the private DM AND inside any topic of the forum group — buttons stay
+// in the same topic.
 async function handlePhoto(env, chatId, msg) {
   const caption = captionFromReply(msg.reply_to_message && msg.reply_to_message.text);
-  if (!caption) { await send(env, chatId, "🖼️ To publish, reply to one of today's draft messages with your image. Send 'today' for fresh drafts."); return; }
+  const threadId = msg.message_thread_id;
+  if (!caption) {
+    await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, ...(threadId ? { message_thread_id: threadId } : {}), text: "🖼️ Reply to a Drafts or Monitor post (the one with 'Reply to THIS message') with your image to publish." }),
+    });
+    return;
+  }
   await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      chat_id: chatId, reply_to_message_id: msg.message_id,
+      chat_id: chatId,
+      ...(threadId ? { message_thread_id: threadId } : {}),
+      reply_to_message_id: msg.message_id,
       text: `📤 Where should I post this?\n\n${CAPTION_MARK}\n${caption}`,
       reply_markup: { inline_keyboard: [
         [{ text: "✅ LinkedIn", callback_data: "post:li" }, { text: "📢 Channel", callback_data: "post:ch" }],
@@ -282,14 +306,17 @@ async function handleCallback(env, cb) {
   await editText(env, chatId, msgId, "📤 Done:\n" + out.join("\n"));
 }
 
-async function handle(env, chatId, text) {
+async function handle(env, chatId, text, threadId) {
   const lower = text.toLowerCase();
   const cmd = lower.replace(/^\//, "").split(/\s+/)[0];
   const arg = text.replace(/^\/?\S+\s*/, "").trim();
   if (cmd === "start" || cmd === "help") return send(env, chatId, HELP, true);
   if (cmd === "today" || cmd === "draft" || cmd === "posts" || lower.startsWith("درووست") || lower.startsWith("دروست")) {
-    await send(env, chatId, "✍️ Writing today's 3 posts… (reply to each with your image to publish)");
-    return sendDrafts(env, chatId);
+    // If you ran this in the group, route drafts to the Drafts topic.
+    const draftChat = env.TELEGRAM_TOPIC_CHAT_ID && String(chatId) === String(env.TELEGRAM_TOPIC_CHAT_ID) ? chatId : chatId;
+    const draftThread = env.TELEGRAM_TOPIC_DRAFTS && String(chatId) === String(env.TELEGRAM_TOPIC_CHAT_ID) ? Number(env.TELEGRAM_TOPIC_DRAFTS) : threadId;
+    await sendTo(env, chatId, "✍️ Writing today's 3 posts… (reply to each with your image to publish)", threadId);
+    return sendDrafts(env, draftChat, draftThread);
   }
   // legacy video controls
   let topic = null;
@@ -308,6 +335,14 @@ async function handle(env, chatId, text) {
 async function send(env, chatId, text, markdown) {
   try {
     const body = { chat_id: chatId, text: String(text).slice(0, 4000), disable_web_page_preview: true };
+    if (markdown) body.parse_mode = "Markdown";
+    await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  } catch { /* ignore */ }
+}
+async function sendTo(env, chatId, text, threadId, markdown) {
+  try {
+    const body = { chat_id: chatId, text: String(text).slice(0, 4000), disable_web_page_preview: true };
+    if (threadId) body.message_thread_id = Number(threadId);
     if (markdown) body.parse_mode = "Markdown";
     await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   } catch { /* ignore */ }
