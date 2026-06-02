@@ -4,28 +4,29 @@ import path from "node:path";
 
 const api = (token, method) => `https://api.telegram.org/bot${token}/${method}`;
 
-export async function sendMessage({ token, chatId, text }) {
+export async function sendMessage({ token, chatId, text, threadId }) {
   if (!token || !chatId) return;
+  const body = { chat_id: chatId, text, disable_web_page_preview: true };
+  if (threadId) body.message_thread_id = Number(threadId);
   await fetch(api(token, "sendMessage"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true }),
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
   }).catch(() => {});
 }
 
-export async function sendPhoto({ token, chatId, file, caption }) {
+export async function sendPhoto({ token, chatId, file, caption, threadId }) {
   if (!token || !chatId) return;
   try {
     const buf = fs.readFileSync(file);
     const form = new FormData();
     form.append("chat_id", String(chatId));
+    if (threadId) form.append("message_thread_id", String(threadId));
     if (caption) form.append("caption", caption.slice(0, 1024));
     form.append("photo", new Blob([buf], { type: "image/png" }), path.basename(file));
     const res = await fetch(api(token, "sendPhoto"), { method: "POST", body: form });
     if (!res.ok) {
-      // photos must be <10MB / valid; fall back to sending as a document
       const form2 = new FormData();
       form2.append("chat_id", String(chatId));
+      if (threadId) form2.append("message_thread_id", String(threadId));
       if (caption) form2.append("caption", caption.slice(0, 1024));
       form2.append("document", new Blob([buf], { type: "image/png" }), path.basename(file));
       const res2 = await fetch(api(token, "sendDocument"), { method: "POST", body: form2 });
