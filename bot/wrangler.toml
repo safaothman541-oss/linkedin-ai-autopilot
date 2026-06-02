@@ -3,12 +3,17 @@ main = "worker.js"
 compatibility_date = "2025-01-01"
 workers_dev = true
 
-# Public channel/group where published LinkedIn posts are mirrored.
+# Forum-group chat + topic IDs (so the bot can route to the right topic and
+# accept Reply→button flow from inside any topic).
 [vars]
 TELEGRAM_GROUP_ID = "@vertex1_tech"
+TELEGRAM_TOPIC_CHAT_ID = "-1003915145933"
+TELEGRAM_TOPIC_DRAFTS = "2"
+TELEGRAM_TOPIC_MONITOR = "3"
+TELEGRAM_TOPIC_EMAIL = "4"
+TELEGRAM_TOPIC_STATUS = "5"
 
-# OPTIONAL daily auto-drafts: uncomment to have the bot send the 3 posts every day
-# at 08:00 UTC (≈ 11:00 Iraq). It only SENDS drafts — publishing still needs you to
-# reply to a draft with your image. Leave commented to keep the bot fully manual.
+# OPTIONAL daily auto-drafts: uncomment to have the bot send the 3 posts every
+# day to the Drafts topic. Publishing still needs you to reply + tap a button.
 # [triggers]
 # crons = ["0 8 * * *"]
