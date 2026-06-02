@@ -32,6 +32,8 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_TOPIC_CHAT_ID: ${{ vars.TELEGRAM_TOPIC_CHAT_ID }}
+          TELEGRAM_TOPIC_EMAIL: ${{ vars.TELEGRAM_TOPIC_EMAIL }}
         run: node src/email/run-email.js
       - name: Save email state
         if: always()
