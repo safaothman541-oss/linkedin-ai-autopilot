@@ -18,11 +18,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: "22" }
-      - name: Restore email state
+      # Rolling cache: unique key per run + restore-keys prefix so every run
+      # restores the most recent state (otherwise it re-judges/re-sends old mail).
+      - name: Restore email state (auto-saves at job end)
         uses: actions/cache@v4
         with:
           path: email-state.json
-          key: email-state-v1
+          key: email-state-v2-${{ github.run_id }}
+          restore-keys: |
+            email-state-v2-
       - name: Install deps
         run: npm install --no-audit --no-fund --ignore-scripts
       - name: Run email monitor
@@ -35,9 +39,3 @@ jobs:
           TELEGRAM_TOPIC_CHAT_ID: ${{ vars.TELEGRAM_TOPIC_CHAT_ID }}
           TELEGRAM_TOPIC_EMAIL: ${{ vars.TELEGRAM_TOPIC_EMAIL }}
         run: node src/email/run-email.js
-      - name: Save email state
-        if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: email-state.json
-          key: email-state-v1-${{ github.run_id }}
