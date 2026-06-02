@@ -16,7 +16,6 @@ const env = process.env;
 const TG = env.TELEGRAM_TOPIC_CHAT_ID
   ? { token: env.TELEGRAM_BOT_TOKEN, chatId: env.TELEGRAM_TOPIC_CHAT_ID, threadId: env.TELEGRAM_TOPIC_EMAIL }
   : { token: env.TELEGRAM_BOT_TOKEN, chatId: env.TELEGRAM_CHAT_ID };
-const FIRST_RUN_SCAN = 10;   // emails to judge on the very first run (demo + baseline)
 const MAX_PER_RUN = 25;      // cap classifications per run (cost / spam guard)
 
 const loadState = () => { try { return JSON.parse(fs.readFileSync(STATE_FILE, "utf8")); } catch { return {}; } };
@@ -73,26 +72,33 @@ async function main() {
   const lock = await client.getMailboxLock("INBOX");
   try {
     const uidNext = client.mailbox.uidNext;
-    const firstRun = !state.lastUid;
-    const start = firstRun ? Math.max(1, uidNext - FIRST_RUN_SCAN) : state.lastUid + 1;
-    if (start >= uidNext) { console.log("nothing new"); }
-    else {
-      const msgs = [];
-      for await (const m of client.fetch(`${start}:*`, { uid: true, source: true }, { uid: true })) msgs.push(m);
-      msgs.sort((a, b) => a.uid - b.uid);
-      const batch = msgs.slice(-MAX_PER_RUN);
-      for (const m of batch) {
-        const mail = await toMail(m.source);
-        const v = await classify(mail); judged++;
-        if (v.important) { await notify(mail, v); notified++; }
+    if (!state.lastUid) {
+      // FIRST RUN: set the baseline only — never judge/send the existing backlog.
+      // This way, if the state is ever lost, we silently re-baseline instead of
+      // re-sending old emails. Only emails that arrive AFTER now are considered.
+      state.lastUid = uidNext - 1;
+      saveState(state);
+      await sendMessage({ ...TG, text: `📧 Email monitor is ON for ${env.GMAIL_USER}.\nFrom now on, Gemini judges only NEW emails and pings you about important ones.` });
+    } else {
+      const start = state.lastUid + 1;
+      if (start >= uidNext) { console.log("nothing new"); }
+      else {
+        const msgs = [];
+        for await (const m of client.fetch(`${start}:*`, { uid: true, source: true }, { uid: true })) msgs.push(m);
+        msgs.sort((a, b) => a.uid - b.uid);
+        // advance the baseline past EVERY new uid (even any beyond the per-run cap)
+        // so nothing is ever judged or sent twice.
+        const maxUid = Math.max(state.lastUid, ...msgs.map((m) => m.uid));
+        const batch = msgs.slice(-MAX_PER_RUN);
+        for (const m of batch) {
+          const mail = await toMail(m.source);
+          const v = await classify(mail); judged++;
+          if (v.important) { await notify(mail, v); notified++; }
+        }
+        state.lastUid = maxUid;
+        saveState(state);
       }
-      state.lastUid = Math.max(state.lastUid || 0, ...msgs.map((m) => m.uid));
     }
-    if (firstRun) {
-      state.lastUid = state.lastUid || (uidNext - 1);
-      await sendMessage({ ...TG, text: `📧 Email monitor is ON for ${env.GMAIL_USER}.\nGemini will judge new emails and ping you only about important ones.` });
-    }
-    saveState(state);
   } finally { lock.release(); }
   await client.logout();
   console.log(`email: judged ${judged}, important ${notified}`);
