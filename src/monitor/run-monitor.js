@@ -128,8 +128,9 @@ async function deliverToChannel(chatId, post) {
 
 async function deliver(post) {
   const imgPrompt = await genImagePrompt(post.text);
-  await deliverTo(TG.chatId, post, imgPrompt, TG.threadId);             // private/topic: content + your image prompt
-  if (env.TELEGRAM_GROUP_ID) await deliverToChannel(env.TELEGRAM_GROUP_ID, post); // public channel: clean + AR + CKB
+  // Deliver to YOUR Telegram only. Posting to the public channel / LinkedIn is
+  // YOUR call — reply to this message with your image and tap a button.
+  await deliverTo(TG.chatId, post, imgPrompt, TG.threadId);
 }
 
 async function main() {
