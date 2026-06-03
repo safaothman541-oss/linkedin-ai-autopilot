@@ -55,4 +55,5 @@ jobs:
           CLIP_URL: ${{ inputs.url }}
           CLIP_COUNT: ${{ inputs.count }}
           WHISPER_MODEL: ${{ inputs.model }}
+          YTDLP_EXTRA: ${{ vars.YTDLP_EXTRA }}
         run: node src/clip/make-clips.mjs
