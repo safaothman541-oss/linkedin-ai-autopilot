@@ -1,0 +1,58 @@
+name: Long Video → Shorts
+
+# Turn a long video/podcast into several vertical Shorts (speaker-tracking crop,
+# build-up captions, quiet music) and send them to Telegram for review.
+# Trigger: Actions tab → "Long Video → Shorts" → Run workflow → paste a URL.
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "YouTube / video URL to clip"
+        required: true
+      count:
+        description: "How many Shorts to make"
+        required: false
+        default: "6"
+      model:
+        description: "Whisper model (tiny.en, base.en, small.en, medium.en)"
+        required: false
+        default: "base.en"
+
+concurrency:
+  group: clips
+  cancel-in-progress: false
+
+jobs:
+  clips:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Cache Whisper model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: whisper-${{ inputs.model }}
+          restore-keys: whisper-
+      - name: Install Python tools
+        run: pip install --upgrade yt-dlp faster-whisper "opencv-python-headless>=4.9" numpy
+      - name: Install Node deps
+        run: npm install --no-audit --no-fund --ignore-scripts
+      - name: Make clips
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          JAMENDO_CLIENT_ID: ${{ secrets.JAMENDO_CLIENT_ID }}
+          TELEGRAM_TOPIC_CHAT_ID: ${{ vars.TELEGRAM_TOPIC_CHAT_ID }}
+          TELEGRAM_TOPIC_DRAFTS: ${{ vars.TELEGRAM_TOPIC_DRAFTS }}
+          CLIP_URL: ${{ inputs.url }}
+          CLIP_COUNT: ${{ inputs.count }}
+          WHISPER_MODEL: ${{ inputs.model }}
+        run: node src/clip/make-clips.mjs
