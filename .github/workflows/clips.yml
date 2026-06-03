@@ -44,6 +44,17 @@ jobs:
         run: pip install --upgrade yt-dlp faster-whisper "opencv-python-headless>=4.9" numpy
       - name: Install Node deps
         run: npm install --no-audit --no-fund --ignore-scripts
+      - name: Prepare YouTube cookies (optional)
+        env:
+          YT_COOKIES: ${{ secrets.YT_COOKIES }}
+        run: |
+          if [ -n "$YT_COOKIES" ]; then
+            printf '%s' "$YT_COOKIES" > "$RUNNER_TEMP/yt-cookies.txt"
+            echo "YT_COOKIES_FILE=$RUNNER_TEMP/yt-cookies.txt" >> "$GITHUB_ENV"
+            echo "cookies: enabled ($(wc -l < "$RUNNER_TEMP/yt-cookies.txt") lines)"
+          else
+            echo "cookies: none — YouTube may block the datacenter IP"
+          fi
       - name: Make clips
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
