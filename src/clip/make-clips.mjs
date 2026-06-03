@@ -30,13 +30,20 @@ const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart
 // ---- 1) get the source video ---------------------------------------------
 function getSource(input, wd) {
   if (input && /^https?:\/\//i.test(input)) {
+    // YouTube often blocks datacenter IPs ("sign in to confirm you're not a
+    // bot"). Cookies (YT_COOKIES_FILE) are the reliable fix; YTDLP_EXTRA lets
+    // you pass things like --extractor-args without a code change.
+    const cookies = env.YT_COOKIES_FILE && fs.existsSync(env.YT_COOKIES_FILE) ? ["--cookies", env.YT_COOKIES_FILE] : [];
+    const extra = (env.YTDLP_EXTRA || "").split(" ").filter(Boolean);
     sh("yt-dlp", [
       "-f", `bv*[height<=${MAX_H}][ext=mp4]+ba[ext=m4a]/b[height<=${MAX_H}]/best`,
       "--merge-output-format", "mp4", "--no-playlist",
+      "--retries", "5", "--fragment-retries", "5", "--no-warnings",
+      ...cookies, ...extra,
       "-o", path.join(wd, "source.%(ext)s"), input,
     ], { stdio: ["ignore", "inherit", "inherit"] });
     const f = fs.readdirSync(wd).find((x) => x.startsWith("source."));
-    if (!f) throw new Error("yt-dlp produced no file");
+    if (!f) throw new Error("yt-dlp produced no file (the site may require sign-in cookies — set YT_COOKIES_FILE)");
     return path.join(wd, f);
   }
   if (input && fs.existsSync(input)) return input;
