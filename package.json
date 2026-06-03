@@ -9,6 +9,8 @@
     "images": "node --env-file-if-exists=.env src/images/run-images.js",
     "monitor": "node --env-file-if-exists=.env src/monitor/run-monitor.js",
     "email": "node --env-file-if-exists=.env src/email/run-email.js",
+    "short": "node --env-file-if-exists=.env src/shorts/make-short.mjs",
+    "clips": "node --env-file-if-exists=.env src/clip/make-clips.mjs",
     "token": "node --env-file-if-exists=.env tools/get-linkedin-token.js"
   },
   "engines": {
