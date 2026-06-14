@@ -1,12 +1,8 @@
 name: Daily LinkedIn Image Posts
 
-# Three posts a day, one pillar each (spaced out for better reach):
-#   08:00 UTC → Claude skill   ·   12:00 UTC → 3-model face-off   ·   16:00 UTC → ERPIQ deep-dive
+# Three posts a day (Claude skill / 3-model face-off / ERPIQ).
+# PAUSED by user — schedule removed, manual-only.
 on:
-  schedule:
-    - cron: "0 8 * * *"
-    - cron: "0 12 * * *"
-    - cron: "0 16 * * *"
   workflow_dispatch:
     inputs:
       pillar:
