@@ -1,9 +1,7 @@
 name: Email Alerts
 
-# AI-judged important-email alerts every 30 minutes.
+# AI-judged important-email alerts. PAUSED by user — schedule removed, manual-only.
 on:
-  schedule:
-    - cron: "*/30 * * * *"
   workflow_dispatch:
 
 concurrency:
