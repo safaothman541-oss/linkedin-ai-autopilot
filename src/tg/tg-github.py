@@ -27,7 +27,7 @@ def _load_env():
 
 _load_env()
 BOT = os.environ["TELEGRAM_BOT_TOKEN"]
-DEST = int(os.environ.get("ART_DEST") or os.environ["TELEGRAM_TOPIC_CHAT_ID"])
+DEST = int(os.environ.get("ART_DEST") or os.environ.get("TELEGRAM_TOPIC_CHAT_ID") or "-1003915145933")
 GEMINI = os.environ.get("GEMINI_API_KEY", "")
 GROQ = os.environ.get("GROQ_API_KEY", "")
 OPENROUTER = os.environ.get("OPENROUTER_API_KEY", "")
